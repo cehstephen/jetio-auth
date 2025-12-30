@@ -29,6 +29,13 @@ jobs:
           pip install -r requirements.txt
           pip install -e .
 
+      - name: Debug import
+        run: |
+          python -c "import sys; print(sys.version); print(sys.path)"
+          python -c "import jetio_auth; print('jetio_auth imported from', jetio_auth.__file__)"
+          python -c "import pkgutil; print([m.name for m in pkgutil.iter_modules() if 'jetio' in m.name])"
+          pip show -f jetio-auth
+
       - name: Run tests
         run: |
           pytest -q
