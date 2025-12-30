@@ -24,5 +24,10 @@ jobs:
       - name: Verify import
         run: python -c "import jetio_auth; print(jetio_auth.__file__)"
 
-      - name: Run tests
-        run: pytest -q
+      - name: Run tests with coverage
+        run: pytest --cov=jetio_auth --cov-report=xml
+
+      - name: Upload coverage to Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
