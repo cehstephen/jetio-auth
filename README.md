@@ -73,9 +73,9 @@ from jetio import CrudRouter
 CrudRouter(
     model=Post,
     secure=True,
-    auth_dependency=auth.get_auth_dependency(), # Validates JWT - restricts acces to any logged in user
+    auth_dependency=auth.get_auth_dependency(), # Validates JWT - restricts 'read' acces to any logged in user 
     policy={        
-        "POST": auth.get_auth_dependency(), # Any logged-in user
+        "POST": auth.get_auth_dependency(), # Any logged-in user can create
          "PUT": auth.owner_or_admin(Post), # only the owner or admin can edit a post
          "DELETE": auth.admin_only() # Only admins can delete. making the delete method call for this resource only available to admins.
     }
