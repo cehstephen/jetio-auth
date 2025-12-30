@@ -34,7 +34,7 @@ Inherit from JetioAuthMixin to get hashed_password and is_admin columns automati
 ```python 
 # models.py
 from jetio import JetioModel
-from jetio_auth.mixins import JetioAuthMixin
+from jetio_auth import JetioAuthMixin
 from sqlalchemy.orm import Mapped, mapped_column
 
 class User(JetioModel, JetioAuthMixin):
