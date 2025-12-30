@@ -69,15 +69,15 @@ Use the provided policies to secure your data.
 ```python 
 from jetio import CrudRouter
 
-# Example: A router where only the Owner (or an Admin) can edit/delete
+# Example: A router where access policy is enforced using jetio-auth - using: get_auth_dependency, Owner (or an Admin)
 CrudRouter(
     model=Post,
     secure=True,
-    auth_dependency=auth.get_auth_dependency(), # Validates JWT
+    auth_dependency=auth.get_auth_dependency(), # Validates JWT - restricts acces to any logged in user
     policy={        
         "POST": auth.get_auth_dependency(), # Any logged-in user
          "PUT": auth.owner_or_admin(Post), # only the owner or admin can edit a post
-         "DELETE": auth.admin_only() # Only admins can delete. You can alternatively use owner_or_admin(Post), this is for demo only.
+         "DELETE": auth.admin_only() # Only admins can delete. making the delete method call for this resource only available to admins.
     }
 ).register_routes(app)
 ```
