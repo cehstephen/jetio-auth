@@ -74,10 +74,10 @@ CrudRouter(
     model=Post,
     secure=True,
     auth_dependency=auth.get_auth_dependency(), # Validates JWT
-    policy={
-        "PUT": auth.owner_or_admin(Post),
-        "DELETE": auth.owner_or_admin(Post),
-        "POST": auth.get_auth_dependency() # Any logged-in user
+    policy={        
+        "POST": auth.get_auth_dependency(), # Any logged-in user
+         "PUT": auth.owner_or_admin(Post), # only the owner or admin can edit a post
+         "DELETE": auth.admin_only() # Only admins can delete. You can alternatively use owner_or_admin(Post), this is for demo only.
     }
 ).register_routes(app)
 ```
