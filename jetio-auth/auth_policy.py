@@ -1,15 +1,9 @@
 # ---------------------------------------------------------------------------
 # Jetio Auth Plugin
-# Website: https://jetio.org
-#
 # Copyright (c) 2025 Stephen Burabari Tete. All Rights Reserved.
-# 
-# This source code is licensed under the BSD 3-Clause license found in the
-# LICENSE file in the root directory of this source tree.
+# Licensed under the BSD 3-Clause license.
 #
-# Author:   Stephen Burabari Tete
-# Contact:  cehtete [at] gmail.com
-# LinkedIn: https://www.linkedin.com/in/tete-stephen/ 
+# LinkedIn: https://www.linkedin.com/in/tete-stephen/
 # ---------------------------------------------------------------------------
 
 from typing import Optional, List, Any
