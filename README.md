@@ -4,6 +4,7 @@
 
 `jetio-auth` is a battery-included authentication plugin designed to get your application secured in minutes. It bridges your SQLAlchemy database models directly to your API, handling password hashing, JWT token issuance, and granular permission policies automatically.
 
+![Python](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11%20|%203.12-blue)
 ![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)
 ![PyPI version](https://img.shields.io/pypi/v/jetio-auth)
 ![Tests](https://github.com/cehstephen/jetio-auth/actions/workflows/tests.yml/badge.svg)
