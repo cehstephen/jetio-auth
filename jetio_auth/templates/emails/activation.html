@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Activate Your Account</title>
+  </head>
+
+  <body style="font-family: Arial, Helvetica, sans-serif; line-height: 1.6; color: #111;">
+    <h2>Activate your account</h2>
+
+    <p>
+      Welcome{% if company_name %} to {{ company_name }}{% endif %}!
+    </p>
+
+    <p>
+      Thank you for registering. Please confirm your email address by clicking
+      the button below.
+    </p>
+
+    <p style="margin: 24px 0;">
+      <a
+        href="{{ activation_link }}"
+        style="
+          display: inline-block;
+          padding: 12px 18px;
+          background-color: #111;
+          color: #ffffff;
+          text-decoration: none;
+          border-radius: 6px;
+          font-weight: 600;
+        "
+      >
+        Activate Account
+      </a>
+    </p>
+
+    <p>
+      If the button above doesn’t work, copy and paste this link into your browser:
+    </p>
+
+    <p>
+      <a href="{{ activation_link }}">{{ activation_link }}</a>
+    </p>
+
+    <p style="margin-top: 24px; font-size: 12px; color: #666;">
+      If you did not create an account, you can safely ignore this email.
+    </p>
+  </body>
+</html>
