@@ -9,8 +9,7 @@ from jetio_auth.auth_router import LoginSchema
 # ROUTER & ROUTE HANDLER TESTS
 # ===========================================================================
 
-@pytest.mark.asyncio
-async def test_router_wrapper_methods(auth_router):
+def test_router_wrapper_methods(auth_router):
     """Verify wrapper methods delegate correctly to the policy."""
     assert callable(auth_router.get_auth_dependency())
     assert callable(auth_router.admin_only())
@@ -54,7 +53,7 @@ async def test_login_route_handlers(auth_router, db, mock_app):
     # Success Case
     creds = LoginSchema(username="login_route", password="pass")
     res = await handler(creds, db)
-    assert "access_token" in res
+    assert "access_token" in res[0]
     
     # Invalid Password
     bad_creds = LoginSchema(username="login_route", password="wrong")
