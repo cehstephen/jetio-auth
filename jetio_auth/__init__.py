@@ -8,8 +8,22 @@
 
 from .auth_router import AuthRouter
 from .auth_policy import AuthPolicy
-from .mixins import JetioAuthMixin
+from .mixins import (
+    JetioAuthMixin,
+    JetioEmailConfirmationMixin,
+    JetioPasswordResetMixin,
+    JetioAuthWithResetMixin,
+    JetioFullAuthMixin,
+)
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 
-__all__ = ["AuthRouter", "AuthPolicy", "JetioAuthMixin"]
+__all__ = [
+    "AuthRouter",
+    "AuthPolicy",
+    "JetioAuthMixin",
+    "JetioEmailConfirmationMixin",
+    "JetioPasswordResetMixin",
+    "JetioAuthWithResetMixin",
+    "JetioFullAuthMixin",
+]
