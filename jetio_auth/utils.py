@@ -29,10 +29,22 @@ EXCLUDED_FIELDS = {
     "id", 
     "hashed_password", 
     "created_at", 
-    "updated_at", 
-    "is_admin", 
+    "updated_at"
+
+    # email confirmation (internal)
+    "email_confirmed",
+    "email_confirmed_at",
+    "email_confirmation_token_hash",
+    "email_confirmation_expires_at",
+
+    # password reset (internal)
+    "password_reset_token_hash",
+    "password_reset_expires_at",
+
+    # optional: admin flags
+    "is_admin",
     "is_superuser",
-    "is_staff"
+    "is_staff",
 }
 
 def create_register_schema(model_class: Type[Any]) -> Type[BaseModel]:
