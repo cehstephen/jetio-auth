@@ -6,6 +6,8 @@
 # LinkedIn: https://www.linkedin.com/in/tete-stephen/
 # ---------------------------------------------------------------------------
 
+import logging
+import asyncio
 from typing import Optional, Any, Dict
 
 from sqlalchemy.future import select
@@ -25,6 +27,9 @@ from .utils import create_register_schema
 from .tokens import generate_token, sha256_hex, expires_in_minutes, is_expired, utcnow
 from .email_service import JetioAuthEmailService
 
+# Configure module-level logger
+logger = logging.getLogger(__name__)
+
 
 # =============================================================================
 # Schemas
@@ -38,10 +43,6 @@ class LoginSchema(BaseModel):
 class ForgotPasswordSchema(BaseModel):
     """
     Public schema: the identifier the user enters to locate their account.
-
-    This intentionally does NOT require an email type because many apps allow
-    recovery by username, employee_id, etc. The reset link is always delivered
-    to the email on record for the located user.
     """
     identity: str
 
@@ -58,37 +59,9 @@ class ResetPasswordSchema(BaseModel):
 class AuthRouter:
     """
     Unified authentication and authorization router for Jetio applications.
-
-    Features
-    --------
-    - Auto-detects admin fields (is_admin, is_superuser, etc.) to configure policies.
-    - Generates dynamic Pydantic schemas for registration based on the User model.
-    - Centralized Auth Policy management for routes and dependencies.
-    - Optional Email Confirmation (activation) if the User model includes confirmation columns.
-    - Optional Password Reset ("forgot password") if the User model includes reset columns.
-    - Built-in transactional email sender via JetioAuthEmailService.
-
-    Capability detection
-    -------------------
-    Email confirmation is enabled if the User model has:
-      - email_confirmed
-      - email_confirmed_at
-      - email_confirmation_token_hash
-      - email_confirmation_expires_at
-
-    Password reset is enabled if the User model has:
-      - password_reset_token_hash
-      - password_reset_expires_at
-
-    Identity field vs email delivery field
-    --------------------------------------
-    - `identity_field` determines how a user is LOOKED UP (e.g. username, email, employee_id).
-      Default: `email` if present else `username`.
-    - `email_field` determines where email is DELIVERED (email on record).
-      Default: `email`.
-
-    In password reset:
-      User enters identity -> framework finds user -> reset email goes to user's `email_field`.
+    
+    Implements asynchronous background email delivery using asyncio.create_task
+    to ensure non-blocking responses without external dependencies.
     """
 
     def __init__(
@@ -232,15 +205,39 @@ class AuthRouter:
     # -------------------------------------------------------------------------
 
     def _absolute_link(self, path: str) -> str:
-        """
-        Build absolute link using settings.DOMAIN.
-
-        Jetio's current dependency injection doesn't guarantee Request injection
-        into handlers; therefore we keep this purely config-driven.
-        """
         if not path.startswith("/"):
             path = "/" + path
         return f"{settings.DOMAIN}{path}"
+
+    async def _safe_send_activation(self, to_email: str, link: str):
+        """Wrapper to log errors during background execution."""
+        try:
+            await self.email_service.send_activation_email(
+                to_email,
+                activation_link=link,
+                company_name="Jetio App",
+            )
+        except Exception as e:
+            logger.error(f"Failed to send activation email to {to_email}: {e}")
+
+    async def _safe_send_reset(self, to_email: str, link: str):
+        """Wrapper to log errors during background execution."""
+        try:
+            await self.email_service.send_password_reset_email(to_email, link)
+        except Exception as e:
+            logger.error(f"Failed to send password reset email to {to_email}: {e}")
+
+    async def _safe_send_reset_success(self, to_email: str):
+        """Wrapper to log errors during background execution."""
+        try:
+            await self.email_service.send_custom_email(
+                to_email,
+                subject="Your password has been changed",
+                template_name="password_reset_success.html",
+                context={},
+            )
+        except Exception as e:
+            logger.error(f"Failed to send password reset success email to {to_email}: {e}")
 
     # ========================================================================
     # ROUTES
@@ -258,7 +255,8 @@ class AuthRouter:
 
         @app.route(self.register_path, methods=["POST"])
         async def register(user_data: RegisterSchema, db: AsyncSession):
-            data = user_data.dict()
+            # Use model_dump() for Pydantic V2 compatibility
+            data = user_data.model_dump()
             raw_password = data.pop("password")
             hashed = get_password_hash(raw_password)
 
@@ -283,18 +281,12 @@ class AuthRouter:
                     status_code=400,
                 )
 
+            # Fire-and-forget background email task
             if confirmation_token is not None and email_field is not None:
-                # Best-effort email send (fail-soft)
-                try:
-                    to_email = str(getattr(new_user, email_field))
-                    activation_link = self._absolute_link(f"/activate/{confirmation_token}")
-                    await self.email_service.send_activation_email(
-                        to_email,
-                        activation_link=activation_link,
-                        company_name="Jetio App",
-                    )
-                except Exception:
-                    pass
+                to_email = str(getattr(new_user, email_field))
+                activation_link = self._absolute_link(f"/activate/{confirmation_token}")
+                
+                asyncio.create_task(self._safe_send_activation(to_email, activation_link))
 
                 return JsonResponse(
                     {"message": "User created. Please check your email to verify your account."},
@@ -309,6 +301,7 @@ class AuthRouter:
                 select(self.user_model).where(self.user_model.username == user_data.username)
             )
             user = result.scalars().first()
+            
             if not user or not verify_password(user_data.password, user.hashed_password):
                 return JsonResponse({"error": "Invalid credentials"}, status_code=401)
 
@@ -323,7 +316,7 @@ class AuthRouter:
             return JsonResponse({"access_token": token, "token_type": "bearer"}, status_code=200)
 
         # ---------------------------------------------------------------------
-        # Email confirmation activation route (only if enabled)
+        # Email confirmation activation route
         # ---------------------------------------------------------------------
         if self._email_confirmation_enabled():
 
@@ -348,10 +341,11 @@ class AuthRouter:
                 user.email_confirmation_expires_at = None
 
                 await db.commit()
+                await db.refresh(user)
                 return JsonResponse({"message": "Account verified successfully."}, status_code=200)
 
         # ---------------------------------------------------------------------
-        # Password reset routes (only if enabled)
+        # Password reset routes
         # ---------------------------------------------------------------------
         if self._password_reset_enabled():
             assert identity_field is not None
@@ -367,6 +361,8 @@ class AuthRouter:
                     )
                 )
                 user = result.scalars().first()
+                
+                # Return success even if user not found to prevent enumeration
                 if not user:
                     return JsonResponse(generic, status_code=200)
 
@@ -377,21 +373,17 @@ class AuthRouter:
                 await db.commit()
                 await db.refresh(user)
 
-                # Deliver to the user's email on record, not the provided identity.
-                try:
-                    to_email = str(getattr(user, email_field))
-                    reset_link = self._absolute_link(f"/reset-password/{reset_token}")
-                    await self.email_service.send_password_reset_email(to_email, reset_link)
-                except Exception:
-                    pass
+                # Fire-and-forget background email task
+                to_email = str(getattr(user, email_field))
+                reset_link = self._absolute_link(f"/reset-password/{reset_token}")
+                
+                asyncio.create_task(self._safe_send_reset(to_email, reset_link))
 
                 return JsonResponse(generic, status_code=200)
 
             @app.route("/reset-password/{token}", methods=["GET"])
             async def reset_password_link(token: str):
-                """
-                Renders a password reset form with client-side password confirmation.
-                """
+                """Renders a password reset form with client-side password confirmation."""
                 html_content = f"""
                 <!doctype html>
                 <html lang="en">
@@ -417,30 +409,22 @@ class AuthRouter:
                 <body>
                     <div class="card">
                         <h2>Set New Password</h2>
-                        
                         <div id="message"></div>
-
                         <form id="resetForm">
                             <input type="hidden" id="token" name="token" value="{token}">
-                            
                             <label for="new_password">New Password</label>
                             <input type="password" id="new_password" name="new_password" placeholder="Enter new password" required autofocus>
-                            
                             <label for="confirm_password">Confirm Password</label>
                             <input type="password" id="confirm_password" name="confirm_password" placeholder="Re-type new password" required>
-                            
                             <button type="submit" id="submitBtn">Update Password</button>
                         </form>
-                        
                         <div class="meta">
                             This link expires in {self.reset_ttl_minutes} minutes.
                         </div>
                     </div>
-
                     <script>
                         document.getElementById('resetForm').addEventListener('submit', async function(e) {{
                             e.preventDefault();
-                            
                             const btn = document.getElementById('submitBtn');
                             const msgDiv = document.getElementById('message');
                             const token = document.getElementById('token').value;
@@ -453,31 +437,22 @@ class AuthRouter:
                             msgDiv.style.display = 'none';
                             msgDiv.className = '';
 
-                            // Client-side Validation
                             if (password !== confirm) {{
                                 msgDiv.innerText = "Passwords do not match. Please try again.";
                                 msgDiv.className = 'error';
                                 msgDiv.style.display = 'block';
                                 btn.disabled = false;
                                 btn.innerText = "Update Password";
-                                return; // validation failed, exit early
+                                return;
                             }}
 
                             try {{
                                 const response = await fetch('/reset-password', {{
                                     method: 'POST',
-                                    headers: {{
-                                        'Content-Type': 'application/json'
-                                    }},
-                                    // sending the data as JSON
-                                    body: JSON.stringify({{
-                                        token: token,
-                                        new_password: password
-                                    }})
+                                    headers: {{ 'Content-Type': 'application/json' }},
+                                    body: JSON.stringify({{ token: token, new_password: password }})
                                 }});
-
                                 const result = await response.json();
-
                                 if (response.ok) {{
                                     msgDiv.innerText = "Password reset successfully! You can now log in.";
                                     msgDiv.className = 'success';
@@ -520,17 +495,12 @@ class AuthRouter:
                 user.password_reset_expires_at = None
 
                 await db.commit()
-                await db.refresh(user)                
-                try:
-                    to_email = str(getattr(user, email_field))
-                    await self.email_service.send_custom_email(
-                        to_email,
-                        subject="Your password has been changed",
-                        template_name="password_reset_success.html",
-                        context={},
-                    )
-                except Exception:
-                    pass
+                await db.refresh(user)
+
+                # Fire-and-forget background email task
+                to_email = str(getattr(user, email_field))
+                asyncio.create_task(self._safe_send_reset_success(to_email))
+
                 return JsonResponse({"message": "Password reset successfully."}, status_code=200)
 
     def register_admin_routes(self, app, path="/admin/{item_id:int}/make-admin"):
