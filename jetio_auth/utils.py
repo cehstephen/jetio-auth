@@ -29,7 +29,7 @@ EXCLUDED_FIELDS = {
     "id", 
     "hashed_password", 
     "created_at", 
-    "updated_at"
+    "updated_at",
 
     # email confirmation (internal)
     "email_confirmed",
