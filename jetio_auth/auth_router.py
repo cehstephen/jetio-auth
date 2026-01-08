@@ -71,6 +71,7 @@ class AuthRouter:
         login_path: str = "/login",
         register_path: str = "/register",
         *,
+        company_name: str = "Jetio App",
         identity_field: Optional[str] = None,
         email_field: str = "email",
         require_verified_email: bool = False,
@@ -80,6 +81,9 @@ class AuthRouter:
         self.user_model = user_model
         self.login_path = login_path
         self.register_path = register_path
+        
+        # Store for use in email templates
+        self.company_name = company_name
 
         self.identity_field = identity_field
         self.email_field = email_field
@@ -215,7 +219,7 @@ class AuthRouter:
             await self.email_service.send_activation_email(
                 to_email,
                 activation_link=link,
-                company_name="Jetio App",
+                company_name=self.company_name,
             )
         except Exception as e:
             logger.error(f"Failed to send activation email to {to_email}: {e}")
@@ -234,7 +238,7 @@ class AuthRouter:
                 to_email,
                 subject="Your password has been changed",
                 template_name="password_reset_success.html",
-                context={},
+                context={"company_name": self.company_name},
             )
         except Exception as e:
             logger.error(f"Failed to send password reset success email to {to_email}: {e}")
