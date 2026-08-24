@@ -22,8 +22,19 @@ jobs:
           
       - name: Verify import
         run: python -c "import jetio_auth; print(jetio_auth.__file__)"
-      - name: Run tests with coverage
-        run: pytest --cov=jetio_auth --cov-report=xml
+      - name: Run unit tests with coverage
+        run: pytest tests/ --cov=jetio_auth --cov-report=xml
+      - name: Run real-jetio integration tests
+        # tests/conftest.py mocks sys.modules["jetio"] at module level; running
+        # it in the same pytest session as tests_integration/ (which needs the
+        # real jetio.JetioModel/ModelMetaclass) would leak that mock across and
+        # break the real-jetio tests -- see tests_integration/README.md.
+        run: pytest tests_integration/
+      - name: Run end-to-end scenario tests
+        # Needs a sibling checkout of jetio's fix/metaclass-api-config-mro-lookup
+        # branch (JETIO_REPO_PATH) for the mixin-based scenario app to fully
+        # pass; skips cleanly here since CI only checks out this repo.
+        run: pytest tests_e2e/
       - name: Upload coverage to Coveralls
         uses: coverallsapp/github-action@v2
         with:
