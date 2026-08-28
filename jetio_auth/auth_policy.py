@@ -117,7 +117,7 @@ class AuthPolicy:
                 raise HTTPException(status_code=404, detail="Resource not found")
 
             # 4) Perform owner/admin authorization check
-            is_admin = bool(getattr(user, "is_admin", False))
+            is_admin = bool(getattr(user, self.admin_field, False))
 
             try:
                 current_user_id = int(getattr(user, "id"))
@@ -146,10 +146,10 @@ class AuthPolicy:
         """
         async def dependency(request: Request, db: AsyncSession):
             user = await self.get_auth_dependency()(request, db)
-            if getattr(user, "is_admin", False):
+            if getattr(user, self.admin_field, False):
                 return user
             raise HTTPException(
-                status_code=403, 
+                status_code=403,
                 detail="Forbidden: Admin access required."
             )
         

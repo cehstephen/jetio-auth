@@ -2,7 +2,8 @@ import pytest
 from starlette.requests import Request
 from starlette.exceptions import HTTPException
 from unittest.mock import MagicMock
-from tests.conftest import User, Question
+from tests.conftest import User, Question, CustomAdminFieldUser
+from jetio_auth.auth_policy import AuthPolicy
 import jetio.auth
 
 # ===========================================================================
@@ -12,6 +13,15 @@ import jetio.auth
 @pytest.fixture
 def policy(auth_router):
     return auth_router._policy
+
+@pytest.fixture
+def custom_admin_field_policy():
+    """AuthPolicy for a model whose admin field is deliberately NOT named
+    "is_admin" -- both admin_only() and owner_or_admin() previously
+    hardcoded that literal string instead of using self.admin_field, so
+    every admin-gated check silently rejected real admins on a model like
+    this. See auth_policy.py's admin_only()/owner_or_admin()."""
+    return AuthPolicy(CustomAdminFieldUser, admin_field="promoted")
 
 # ===========================================================================
 # HAPPY PATHS (Standard Logic)
@@ -90,6 +100,51 @@ async def test_owner_or_admin_logic(policy, db):
     with pytest.raises(HTTPException) as exc:
         await dep(req_stranger, db, item_id=question.id)
     assert exc.value.status_code == 403
+
+@pytest.mark.asyncio
+async def test_admin_only_respects_custom_admin_field(custom_admin_field_policy, db):
+    """admin_only() must check self.admin_field, not a hardcoded "is_admin"
+    -- otherwise a real admin on a custom-admin-field model is always
+    rejected, and (separately, see test_utils.py/test_auth_router.py) a
+    self-registered non-admin whose payload happened to set some OTHER
+    field named "is_admin" that doesn't even exist on the model would
+    previously have been silently let through by the same hardcoding."""
+    admin = CustomAdminFieldUser(username="admin_custom", hashed_password="pw", promoted=True)
+    pleb = CustomAdminFieldUser(username="pleb_custom", hashed_password="pw", promoted=False)
+    db.add_all([admin, pleb])
+    await db.commit()
+
+    dep = custom_admin_field_policy.admin_only()
+
+    req_admin = MagicMock(spec=Request)
+    req_admin.headers.get.return_value = "Bearer token_admin_custom"
+    assert await dep(req_admin, db) == admin
+
+    req_pleb = MagicMock(spec=Request)
+    req_pleb.headers.get.return_value = "Bearer token_pleb_custom"
+    with pytest.raises(HTTPException) as exc:
+        await dep(req_pleb, db)
+    assert exc.value.status_code == 403
+
+@pytest.mark.asyncio
+async def test_owner_or_admin_respects_custom_admin_field(custom_admin_field_policy, db):
+    """Same hardcoding bug affected owner_or_admin()'s admin bypass."""
+    owner = CustomAdminFieldUser(username="owner_custom", hashed_password="pw", promoted=False)
+    admin = CustomAdminFieldUser(username="admin_bypass", hashed_password="pw", promoted=True)
+    db.add_all([owner, admin])
+    await db.commit()
+
+    question = Question(content="Help?", author_id=owner.id)
+    db.add(question)
+    await db.commit()
+
+    dep = custom_admin_field_policy.owner_or_admin(Question)
+
+    # Admin bypass must work even though admin isn't the owner.
+    req_admin = MagicMock(spec=Request)
+    req_admin.headers.get.return_value = "Bearer token_admin_bypass"
+    res = await dep(req_admin, db, item_id=question.id)
+    assert res.username == "admin_bypass"
 
 # ===========================================================================
 # EDGE CASES (Errors & Invalid States)

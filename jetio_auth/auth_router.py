@@ -101,8 +101,12 @@ class AuthRouter:
         else:
             self.admin_field = self._detect_admin_field(user_model)
 
-        # 2) DYNAMIC SCHEMA: Generate Pydantic model for registration
-        self.register_schema = create_register_schema(user_model)
+        # 2) DYNAMIC SCHEMA: Generate Pydantic model for registration.
+        # Excludes self.admin_field (whatever it's actually named -- explicit
+        # or auto-detected) regardless of whether it's one of the fixed
+        # guesses create_register_schema's own EXCLUDED_FIELDS covers, so a
+        # custom-named admin field can't be self-registered. See GH issue #6.
+        self.register_schema = create_register_schema(user_model, extra_excluded_fields={self.admin_field})
 
         # 3) POLICY: Initialize policy with the detected admin field
         self._policy = AuthPolicy(user_model, admin_field=self.admin_field)

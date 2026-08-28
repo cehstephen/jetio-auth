@@ -91,6 +91,21 @@ class Question(Base):
     content: Mapped[str] = mapped_column()
     author_id: Mapped[int] = mapped_column()
 
+
+class CustomAdminFieldUser(Base):
+    """A user model whose admin field isn't one of the conventional
+    names (is_admin/is_superuser/is_staff) EXCLUDED_FIELDS guards by
+    default -- see GH issue #6. Used to prove create_register_schema's
+    extra_excluded_fields parameter (and AuthRouter passing its resolved
+    admin_field through it) actually protects a custom-named field, not
+    just the fixed guess-list."""
+
+    __tablename__ = "custom_admin_field_users"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(unique=True)
+    hashed_password: Mapped[str] = mapped_column(default="")
+    promoted: Mapped[bool] = mapped_column(default=False)
+
 # --- Fixtures ---
 @pytest.fixture(scope="session")
 def event_loop():

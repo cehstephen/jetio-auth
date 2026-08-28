@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.future import select
 from jetio_auth.auth_router import AuthRouter
-from .conftest import User
+from .conftest import User, CustomAdminFieldUser
 
 # --- Setup Tests ---
 def test_auto_detect_admin_field():
@@ -13,6 +13,14 @@ def test_manual_admin_field_override_failure():
     """Verifies strictly checking manual admin fields."""
     with pytest.raises(ValueError):
         AuthRouter(user_model=User, admin_field="non_existent_column")
+
+def test_custom_admin_field_is_excluded_from_registration():
+    """GH issue #6: a custom-named admin field (not one of
+    EXCLUDED_FIELDS' fixed guesses) must still be excluded from
+    register_schema, since AuthRouter knows -- via self.admin_field --
+    exactly which field that is, regardless of its name."""
+    router = AuthRouter(user_model=CustomAdminFieldUser, admin_field="promoted")
+    assert "promoted" not in router.register_schema.model_fields
 
 # --- Logic Tests ---
 
