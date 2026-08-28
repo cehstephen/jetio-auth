@@ -47,15 +47,26 @@ EXCLUDED_FIELDS = {
     "is_staff",
 }
 
-def create_register_schema(model_class: Type[Any]) -> Type[BaseModel]:
+def create_register_schema(
+    model_class: Type[Any],
+    extra_excluded_fields: Optional[set] = None,
+) -> Type[BaseModel]:
     """
     Generates a Pydantic model for user registration based on a SQLAlchemy model.
+
+    EXCLUDED_FIELDS only covers a fixed guess-list of admin-flag names
+    (is_admin/is_superuser/is_staff) -- it has no way to know what a given
+    app actually configured or auto-detected as its admin field. Callers
+    that know the real field (e.g. AuthRouter, via its resolved
+    self.admin_field) should pass it via extra_excluded_fields so it's
+    excluded regardless of what it's named -- see GH issue #6.
     """
+    excluded = EXCLUDED_FIELDS | (extra_excluded_fields or set())
     mapper = inspect(model_class)
     fields: Dict[str, Tuple[type, Any]] = {}
 
     for column in mapper.columns:
-        if column.name in EXCLUDED_FIELDS:
+        if column.name in excluded:
             continue
             
         # 1. Resolve Python type

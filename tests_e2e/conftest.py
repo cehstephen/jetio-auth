@@ -96,3 +96,10 @@ def auth_app(tmp_path):
     process, base_url = run_scenario_app(tmp_path, "mixin_auth_scenario_app.py")
     yield base_url
     stop_scenario_app(process)
+
+
+@pytest.fixture
+def custom_admin_field_app(tmp_path):
+    process, base_url = run_scenario_app(tmp_path, "custom_admin_field_scenario_app.py")
+    yield base_url
+    stop_scenario_app(process)
